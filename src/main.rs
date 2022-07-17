@@ -6,7 +6,6 @@ use regex::{Match, Regex};
 use reqwest::Response;
 use std::io;
 use std::io::BufRead;
-use std::sync::Mutex;
 
 lazy_static! {
     static ref BSHORT_REGEX: Regex =
@@ -28,8 +27,7 @@ async fn main() {
             acc
         })
     };
-    let string = replace_bshort(&text).await;
-    println!("{}", string.into_inner().unwrap())
+    print!("{}", replace_bshort(&text).await)
 }
 
 async fn get_redirect_url(url: &str) -> String {
@@ -39,17 +37,17 @@ async fn get_redirect_url(url: &str) -> String {
     x.to_string()
 }
 
-async fn replace_bshort(text: &str) -> Mutex<String> {
+async fn replace_bshort(text: &str) -> String {
     let matches = BSHORT_REGEX.find_iter(text);
     let matches_vec = matches.fold(Vec::new(), |mut acc: Vec<Match>, i| {
         acc.push(i);
         acc
     });
-    let mut trim = Mutex::new(String::from(text));
+    let mut trim = String::from(text);
     let mut stream = stream::iter(matches_vec);
     while let Some(x) = stream.next().await {
         let url = x.as_str();
-        trim = Mutex::from(text.replace(url, &get_redirect_url(url).await));
+        trim = text.replace(url, &get_redirect_url(url).await);
     }
     trim
 }
