@@ -1,33 +1,37 @@
-#[macro_use]
-extern crate lazy_static;
+use std::io::BufRead;
+use std::{io, sync::LazyLock};
 
 use futures::stream::{self, StreamExt};
-use regex::{Match, Regex};
+use regex::Regex;
 use reqwest::Response;
-use std::io;
-use std::io::BufRead;
 
-lazy_static! {
-    static ref BSHORT_REGEX: Regex =
-        Regex::new(r"(?P<url>https?://b23.tv/[0-9a-zA-Z]+)\??(?:&?[^=&]*=[^=&]*)*").unwrap();
-}
+static BSHORT_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?P<url>https?://b23.tv/[0-9a-zA-Z]+)\??(?:&?[^=&]*=[^=&]*)*").unwrap()
+});
 
 #[tokio::main]
 async fn main() {
     // read text from args or stdin
     let mut args = std::env::args();
     let _ = args.next();
-    let text = if args.len() > 0 {
-        args.reduce(|acc, i| format!("{acc} {i}"))
-            .expect("Failed to read args")
+    let (text, is_from_args) = if args.len() > 0 {
+        let text = args
+            .reduce(|acc, i| format!("{acc} {i}"))
+            .expect("Failed to read args");
+        (text, true)
     } else {
         let lines = io::stdin().lock().lines();
-        lines.fold(String::new(), |mut acc, i| {
-            acc.push_str(&*i.unwrap());
+        let text = lines.fold(String::new(), |mut acc, i| {
+            acc.push_str(&i.unwrap());
             acc
-        })
+        });
+        (text, false)
     };
-    print!("{}", replace_bshort(&text).await)
+    print!(
+        "{}{}",
+        replace_bshort(&text).await,
+        if is_from_args { "\n" } else { "" }
+    )
 }
 
 async fn get_redirect_url(url: &str) -> String {
@@ -38,13 +42,9 @@ async fn get_redirect_url(url: &str) -> String {
 }
 
 async fn replace_bshort(text: &str) -> String {
-    let matches = BSHORT_REGEX.find_iter(text);
-    let matches_vec = matches.fold(Vec::new(), |mut acc: Vec<Match>, i| {
-        acc.push(i);
-        acc
-    });
+    let matches: Vec<_> = BSHORT_REGEX.find_iter(text).collect();
     let mut trim = String::from(text);
-    let mut stream = stream::iter(matches_vec);
+    let mut stream = stream::iter(matches);
     while let Some(x) = stream.next().await {
         let url = x.as_str();
         trim = text.replace(url, &get_redirect_url(url).await);
