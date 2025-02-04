@@ -18,3 +18,7 @@ regex = { version = "1", default-features = false, features = ["std"] }
 tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread"] }
 reqwest = "0.12"
 futures = "0.3"
+image = { version = "0.25.5", features = ["nasm"] }
+rqrr = "0.9.0"
+anyhow = "1.0.95"
+qrcode = "0.14.1"
